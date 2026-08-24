@@ -28,6 +28,9 @@ export const metadata: Metadata = {
     description: "Production-ready logs in under a minute.",
 };
 
+import { AuthProvider } from "@/lib/auth";
+import { Toaster } from "@/components/ui/sonner";
+
 export default function RootLayout({
     children,
 }: Readonly<{
@@ -39,16 +42,19 @@ export default function RootLayout({
                 className={`${geistSans.variable} ${geistMono.variable} ${satoshi.variable} antialiased`}
                 suppressHydrationWarning
             >
-                <TooltipProvider>
-                    <DashboardSidebar>
-                        <SidebarInset>
-                            <TopBar />
-                            <div className="py-4 pr-4">
-                                <div className="mx-auto max-w-7xl">{children}</div>
-                            </div>
-                        </SidebarInset>
-                    </DashboardSidebar>
-                </TooltipProvider>
+                <AuthProvider>
+                    <TooltipProvider>
+                        <DashboardSidebar>
+                            <SidebarInset>
+                                <TopBar />
+                                <div className="py-4 pr-4">
+                                    <div className="mx-auto max-w-7xl">{children}</div>
+                                </div>
+                            </SidebarInset>
+                        </DashboardSidebar>
+                    </TooltipProvider>
+                    <Toaster richColors position="top-right" />
+                </AuthProvider>
             </body>
         </html>
     );

@@ -1,5 +1,7 @@
 "use client";
-import React from "react";
+
+import React, { Suspense, useCallback, useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -12,241 +14,109 @@ import {
   TableCell,
 } from "@/components/ui/table";
 import { Play, XCircle, Search, Clipboard, Loader2 } from "lucide-react";
+import { api, LogEntry, LogLevel } from "@/lib/api";
+import { toast } from "sonner";
 
-type ResultRow = {
-  timestamp?: string;
-  type?: "error" | "warning" | "info" | "audit" | "metric";
-  appName?: string;
-  message?: string;
-  environment?: string;
-  importance?: number | string | null;
-  subsystem?: string | null;
-  operation?: string | null;
-  [key: string]: any;
+const levelColor: Record<string, string> = {
+  info: "#60A5FA", // Blue
+  warning: "#FBBF24", // Yellow/Amber
+  error: "#F87171", // Red
+  debug: "#A78BFA", // Purple
+  success: "#34D399", // Emerald/Green
+  audit: "#34D399", // Emerald/Green
+  metric: "#22D3EE", // Cyan
 };
 
-const STATIC_QUERY_RESULTS: ResultRow[] = [
-  {
-    timestamp: "2026-06-14T09:42:11.000Z",
-    type: "info",
-    appName: "web",
-    message: "GET /api/projects returned 200 in 148ms",
-    environment: "production",
-    importance: 2,
-    subsystem: "http",
-    operation: "GET /api/projects",
-  },
-  {
-    timestamp: "2026-06-14T09:42:18.000Z",
-    type: "warning",
-    appName: "billing",
-    message: "Stripe webhook retry scheduled after timeout",
-    environment: "production",
-    importance: 3,
-    subsystem: "payments",
-    operation: "webhook.retry",
-  },
-  {
-    timestamp: "2026-06-14T09:42:24.000Z",
-    type: "error",
-    appName: "api",
-    message: "POST /api/logs failed with upstream timeout",
-    environment: "production",
-    importance: 5,
-    subsystem: "ingest",
-    operation: "POST /api/logs",
-  },
-  {
-    timestamp: "2026-06-14T09:42:31.000Z",
-    type: "audit",
-    appName: "auth",
-    message: "Admin user updated workspace billing settings",
-    environment: "production",
-    importance: 4,
-    subsystem: "rbac",
-    operation: "billing.settings.update",
-  },
-  {
-    timestamp: "2026-06-14T09:42:37.000Z",
-    type: "metric",
-    appName: "ingest",
-    message: "Log ingestion throughput sampled at 284 events/sec",
-    environment: "production",
-    importance: 1,
-    subsystem: "pipeline",
-    operation: "throughput.sample",
-  },
-  {
-    timestamp: "2026-06-14T09:42:44.000Z",
-    type: "warning",
-    appName: "billing",
-    message: "Invoice export latency exceeded warning threshold",
-    environment: "staging",
-    importance: 3,
-    subsystem: "exports",
-    operation: "invoice.export",
-  },
-  {
-    timestamp: "2026-06-14T09:42:51.000Z",
-    type: "error",
-    appName: "api",
-    message: "Query execution timeout while reading logs",
-    environment: "development",
-    importance: 5,
-    subsystem: "queries",
-    operation: "logs.query",
-  },
-  {
-    timestamp: "2026-06-14T09:42:59.000Z",
-    type: "info",
-    appName: "dashboard",
-    message: "User opened the queries page",
-    environment: "production",
-    importance: 1,
-    subsystem: "ui",
-    operation: "page.view",
-  },
-  {
-    timestamp: "2026-06-14T09:43:05.000Z",
-    type: "error",
-    appName: "billing",
-    message: "Payment sync failed after upstream timeout",
-    environment: "production",
-    importance: 5,
-    subsystem: "sync",
-    operation: "payment.sync",
-  },
-  {
-    timestamp: "2026-06-14T09:43:13.000Z",
-    type: "info",
-    appName: "api",
-    message: "Scheduled cleanup job completed successfully",
-    environment: "production",
-    importance: 2,
-    subsystem: "jobs",
-    operation: "cleanup.run",
-  },
-];
+function QueriesContent() {
+  const searchParams = useSearchParams();
+  const initialSearch = searchParams.get("search") || "";
 
-export default function Page() {
-  const [filters, setFilters] = React.useState<{
-    limit?: number;
-    query?: string; // kept for compatibility, but we’ll send explicit keys
-    type?: string;
-    env?: string;
-    appName?: string;
-    search?: string;
-  }>({});
-  const isLoading = false;
-  const error = null;
+  const [query, setQuery] = useState(
+    initialSearch ? `search:${initialSearch}` : "",
+  );
+  const [results, setResults] = useState<LogEntry[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [selected, setSelected] = useState<LogEntry | null>(null);
 
-  const levelColor: Record<string, string> = {
-    info: "#60A5FA",      // Blue
-    warning: "#FBBF24",      // Yellow/Amber
-    error: "#F87171",     // Red
-    debug: "#A78BFA",     // Purple
-    success: "#34D399",   // Emerald/Green
-    audit: "#34D399",     // Emerald/Green
-    metric: "#22D3EE",    // Cyan
-  };
-
-  const [query, setQuery] = React.useState("");
-
-  // Use examples that map cleanly to server filters
   const examples = [
     "type:error",
     "appName:api AND search:timeout",
     "type:warning AND appName:billing",
+    "env:production",
   ];
 
-  // Normalize UI query tokens to server-supported filters
-  const normalizeQuery = (q: string) =>
-    q
-      .replace(/\blevel:/gi, "type:")
-      .replace(/\bservice:/gi, "appName:")
-      .replace(/\bmessage:/gi, "search:")
-      .trim();
-
-  // Parse "type:error AND appName:api AND search:timeout env:development" → explicit filters
-  const parseQueryFilters = React.useCallback((q: string) => {
+  const parseQueryFilters = useCallback((q: string) => {
     const out: {
       type?: string;
+      level?: string;
       env?: string;
       appName?: string;
       search?: string;
-    } = {};
+      limit?: number;
+    } = { limit: 200 };
+
+    if (!q.trim()) return out;
+
     const parts = q.trim().split(/\s+AND\s+|\s+/i);
+    const searchTokens: string[] = [];
+
     for (const p of parts) {
       const [rawKey, ...rest] = p.split(":");
-      if (!rawKey || rest.length === 0) continue;
+      if (!rawKey || rest.length === 0) {
+        searchTokens.push(p);
+        continue;
+      }
       const value = rest.join(":").trim();
       const key = rawKey.trim().toLowerCase();
-      // map synonyms to server-supported keys
-      const mapped =
-        key === "level"
-          ? "type"
-          : key === "service"
-            ? "appName"
-            : key === "message"
-              ? "search"
-              : key;
 
-      if (mapped === "type") out.type = value;
-      else if (mapped === "env" || mapped === "environment") out.env = value;
-      else if (mapped === "appName" || mapped === "app") out.appName = value;
-      else if (mapped === "search") out.search = value;
+      if (key === "level" || key === "type") out.type = value;
+      else if (key === "env" || key === "environment") out.env = value;
+      else if (key === "appname" || key === "app" || key === "service")
+        out.appName = value;
+      else if (key === "search" || key === "message") searchTokens.push(value);
+      else searchTokens.push(p);
     }
+
+    if (searchTokens.length > 0) {
+      out.search = searchTokens.join(" ");
+    }
+
     return out;
   }, []);
 
-  const results: ResultRow[] = React.useMemo(() => {
-    const rows = STATIC_QUERY_RESULTS.filter((row) => {
-      const matchesType = filters.type
-        ? String(row.type || "").toLowerCase() === filters.type.toLowerCase()
-        : true;
-      const matchesEnv = filters.env
-        ? String(row.environment || "").toLowerCase() ===
-          filters.env.toLowerCase()
-        : true;
-      const matchesApp = filters.appName
-        ? String(row.appName || "").toLowerCase() ===
-          filters.appName.toLowerCase()
-        : true;
-      const matchesSearch = filters.search
-        ? `${row.message ?? ""} ${JSON.stringify(row)}`
-            .toLowerCase()
-            .includes(filters.search.toLowerCase())
-        : true;
+  const runQuery = async (queryString = query) => {
+    setIsLoading(true);
+    setError(null);
 
-      return matchesType && matchesEnv && matchesApp && matchesSearch;
-    });
-
-    const limit = filters.limit ?? rows.length;
-    return rows.slice(0, limit);
-  }, [filters]);
-  const [selected, setSelected] = React.useState<ResultRow | null>(null);
-
-  const runQuery = () => {
-    const parsed = parseQueryFilters(normalizeQuery(query));
-    setFilters((prev) => ({
-      ...prev,
-      ...parsed, // send explicit keys: type, env, appName, search
-      limit: 200,
-    }));
+    try {
+      const filters = parseQueryFilters(queryString);
+      const data = await api.getLogs(filters);
+      setResults(data.logs || []);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to run query");
+      setResults([]);
+    } finally {
+      setIsLoading(false);
+    }
   };
+
+  useEffect(() => {
+    runQuery(initialSearch ? `search:${initialSearch}` : "");
+  }, [initialSearch]);
 
   const clearQuery = () => {
     setQuery("");
-    setFilters({ limit: 100 });
+    runQuery("");
   };
 
-  const stats = React.useMemo(() => {
+  const stats = useMemo(() => {
     const total = results.length;
     const errors = results.filter(
-      (r) => String(r.type || "").toLowerCase() === "error"
+      (r) => (r.level || r.type || "").toLowerCase() === "error",
     ).length;
     const warnings = results.filter((r) => {
-      const t = String(r.type || "").toLowerCase();
+      const t = (r.level || r.type || "").toLowerCase();
       return t === "warning" || t === "warn";
     }).length;
     return { total, errors, warnings };
@@ -263,7 +133,7 @@ export default function Page() {
       </div>
 
       {/* Query Bar */}
-      <div className="rounded-xl border p-3">
+      <div className="rounded-xl border border-white/5 p-3 bg-background/30">
         <div className="flex gap-3">
           <Input
             placeholder="Enter query (e.g. type:error AND appName:billing)"
@@ -272,30 +142,33 @@ export default function Page() {
             onKeyDown={(e) => {
               if (e.key === "Enter") runQuery();
             }}
-            className="rounded-xl flex-1"
+            className="rounded-xl flex-1 font-mono text-sm"
           />
-          <Button onClick={runQuery} className="rounded-xl">
-            <Play className="h-4 w-4" />
+          <Button onClick={() => runQuery()} className="rounded-xl">
+            <Play className="h-4 w-4 mr-1" />
             Run Query
           </Button>
           <Button
             variant="ghost"
             onClick={clearQuery}
-            className="rounded-xl hover:bg-white/[0.02]"
+            className="rounded-xl hover:bg-white/5"
           >
-            <XCircle className="h-4 w-4" />
+            <XCircle className="h-4 w-4 mr-1" />
             Clear
           </Button>
         </div>
         <div className="mt-2 flex items-center gap-2">
-          <Search className="h-4 w-4 opacity-60" />
+          <Search className="h-4 w-4 opacity-60 text-muted-foreground" />
           <div className="text-xs text-muted-foreground">Examples:</div>
           <div className="flex flex-wrap gap-2">
             {examples.map((ex) => (
               <button
                 key={ex}
-                onClick={() => setQuery(ex)}
-                className="text-xs rounded-full border px-2 py-1 text-muted-foreground hover:bg-white/[0.03]"
+                onClick={() => {
+                  setQuery(ex);
+                  runQuery(ex);
+                }}
+                className="text-xs rounded-full border border-white/10 px-2 py-0.5 text-muted-foreground hover:bg-white/5 hover:text-white cursor-pointer font-mono"
               >
                 {ex}
               </button>
@@ -305,11 +178,11 @@ export default function Page() {
       </div>
 
       {/* Results Table */}
-      <div className="rounded-xl border">
-        <div className="flex items-center justify-between px-3 py-2">
+      <div className="rounded-xl border border-white/5 overflow-hidden">
+        <div className="flex items-center justify-between px-3 py-2 border-b border-white/5">
           <h3 className="text-sm font-medium">Query Results</h3>
           <span className="text-xs text-muted-foreground flex items-center gap-2">
-            {isLoading && <Loader2 className="h-3 w-3 animate-spin" />}
+            {isLoading && <Loader2 className="h-3 w-3 animate-spin text-teal-400" />}
             {stats.total} rows
           </span>
         </div>
@@ -325,8 +198,17 @@ export default function Page() {
             </div>
           ) : results.length === 0 ? (
             <div className="flex items-center justify-center py-12 text-muted-foreground">
-              <Search className="mr-2 h-4 w-4" />
-              No logs found. Try adjusting your query.
+              {isLoading ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Running query against backend…
+                </>
+              ) : (
+                <>
+                  <Search className="mr-2 h-4 w-4" />
+                  No logs found matching your query filters.
+                </>
+              )}
             </div>
           ) : (
             <Table className="min-w-full">
@@ -340,39 +222,37 @@ export default function Page() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {results.map((r, idx) => (
-                  <TableRow
-                    key={`${r.timestamp ?? "t"}-${idx}`}
-                    className="cursor-pointer"
-                    onClick={() => setSelected(r)}
-                  >
-                    <TableCell className="text-white/60">
-                      {r.timestamp ?? "—"}
-                    </TableCell>
-                    <TableCell
-                      className="font-medium"
-                      style={{
-                        color:
-                          levelColor[
-                          String(
-                            r.type || ""
-                          ).toLowerCase() as keyof typeof levelColor
-                          ] ?? "inherit",
-                      }}
+                {results.map((r, idx) => {
+                  const lvl = (r.level || r.type || "info").toLowerCase();
+                  return (
+                    <TableRow
+                      key={`${r.ts ?? "t"}-${idx}`}
+                      className="cursor-pointer hover:bg-white/5 transition-colors"
+                      onClick={() => setSelected(r)}
                     >
-                      {String(r.type || "").toUpperCase() || "—"}
-                    </TableCell>
-                    <TableCell className="text-white/80">
-                      {r.appName ?? "—"}
-                    </TableCell>
-                    <TableCell className="text-white/90">
-                      {r.message ?? "—"}
-                    </TableCell>
-                    <TableCell className="text-white/70">
-                      {r.environment ?? "—"}
-                    </TableCell>
-                  </TableRow>
-                ))}
+                      <TableCell className="text-white/60">
+                        {r.ts ? new Date(r.ts).toLocaleString() : "—"}
+                      </TableCell>
+                      <TableCell
+                        className="font-medium uppercase"
+                        style={{
+                          color: levelColor[lvl] || "#60A5FA",
+                        }}
+                      >
+                        {lvl}
+                      </TableCell>
+                      <TableCell className="text-white/80 font-semibold">
+                        {r.appName || r.source || "—"}
+                      </TableCell>
+                      <TableCell className="text-white/90">
+                        {r.message || "—"}
+                      </TableCell>
+                      <TableCell className="text-white/70">
+                        {r.environment || "production"}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
               </TableBody>
             </Table>
           )}
@@ -382,11 +262,11 @@ export default function Page() {
       {/* Drawer: Log Details */}
       {selected && (
         <div
-          className="fixed inset-0 z-50 bg-black/50"
+          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs"
           onClick={() => setSelected(null)}
         >
           <div
-            className="fixed right-0 top-0 h-full w-[420px] border-l bg-background p-4"
+            className="fixed right-0 top-0 h-full w-[420px] max-w-[90vw] border-l border-white/10 bg-background p-4 shadow-2xl"
             style={{ background: "#0E1117" }}
             onClick={(e) => e.stopPropagation()}
           >
@@ -395,12 +275,13 @@ export default function Page() {
               <Button
                 variant="outline"
                 size="sm"
-                className="rounded-xl"
-                onClick={() =>
+                className="rounded-xl hover:bg-white/10"
+                onClick={() => {
                   navigator.clipboard.writeText(
-                    JSON.stringify(selected, null, 2)
-                  )
-                }
+                    JSON.stringify(selected, null, 2),
+                  );
+                  toast.success("Copied log JSON");
+                }}
               >
                 <Clipboard className="mr-2 h-3.5 w-3.5" />
                 Copy JSON
@@ -416,46 +297,50 @@ export default function Page() {
                 <div className="space-y-2 text-sm">
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Timestamp</span>
-                    <span>{selected.timestamp ?? "—"}</span>
+                    <span>{selected.ts ? new Date(selected.ts).toLocaleString() : "—"}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Type</span>
                     <span
-                      className="font-medium"
+                      className="font-medium uppercase"
                       style={{
                         color:
                           levelColor[
-                          String(
-                            selected.type || ""
-                          ).toLowerCase() as keyof typeof levelColor
+                            (selected.level || selected.type || "info").toLowerCase()
                           ] ?? "inherit",
                       }}
                     >
-                      {String(selected.type || "").toUpperCase() || "—"}
+                      {selected.level || selected.type || "—"}
                     </span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">App</span>
-                    <span>{selected.appName ?? "—"}</span>
+                    <span>{selected.appName || selected.source || "—"}</span>
                   </div>
+                  {selected.environment && (
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Environment</span>
+                      <span>{selected.environment}</span>
+                    </div>
+                  )}
                   <div>
                     <div className="text-muted-foreground mb-1">Message</div>
-                    <div className="rounded-lg border border-white/10 bg-black/20 p-2">
-                      {selected.message ?? "—"}
+                    <div className="rounded-lg border border-white/10 bg-black/30 p-2 font-mono text-xs text-white/90">
+                      {selected.message || "—"}
                     </div>
                   </div>
-                  <div>
-                    <div className="text-muted-foreground mb-1">
-                      Environment
+                  {selected.payload && Object.keys(selected.payload).length > 0 && (
+                    <div>
+                      <div className="text-muted-foreground mb-1">Payload</div>
+                      <pre className="rounded-lg border border-white/10 bg-black/30 p-2 overflow-x-auto text-xs font-mono text-teal-300/90">
+                        {JSON.stringify(selected.payload, null, 2)}
+                      </pre>
                     </div>
-                    <div className="rounded-lg border border-white/10 bg-black/20 p-2">
-                      {selected.environment ?? "—"}
-                    </div>
-                  </div>
+                  )}
                 </div>
               </TabsContent>
               <TabsContent value="raw" className="mt-3">
-                <pre className="rounded-lg border border-white/10 bg-black/20 p-2 overflow-x-auto text-xs">
+                <pre className="rounded-lg border border-white/10 bg-black/30 p-2 overflow-x-auto text-xs font-mono text-teal-300/90">
                   {JSON.stringify(selected, null, 2)}
                 </pre>
               </TabsContent>
@@ -466,24 +351,35 @@ export default function Page() {
 
       {/* Footer status bar */}
       <div
-        className="flex items-center justify-between rounded-xl border px-3 py-2 text-xs"
+        className="flex items-center justify-between rounded-xl border border-white/5 px-3 py-2 text-xs"
         style={{
           background: "rgba(255,255,255,0.02)",
-          border: "1px solid rgba(255,255,255,0.05)",
         }}
       >
         <div className="flex items-center gap-6">
           <span className="text-muted-foreground">Results</span>
           <span className="font-medium">{stats.total.toLocaleString()}</span>
           <span className="text-muted-foreground">Errors</span>
-          <span className="font-medium">{stats.errors.toLocaleString()}</span>
+          <span className="font-medium text-red-400">{stats.errors.toLocaleString()}</span>
           <span className="text-muted-foreground">Warnings</span>
-          <span className="font-medium">{stats.warnings.toLocaleString()}</span>
-        </div>
-        <div className="text-muted-foreground">
-          {isLoading ? "Loading…" : ""}
+          <span className="font-medium text-yellow-400">{stats.warnings.toLocaleString()}</span>
         </div>
       </div>
     </div>
+  );
+}
+
+export default function QueriesPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex h-64 items-center justify-center text-muted-foreground">
+          <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+          Loading queries…
+        </div>
+      }
+    >
+      <QueriesContent />
+    </Suspense>
   );
 }
