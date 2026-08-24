@@ -4,11 +4,11 @@ export const CHEFU_APP_HEADER = "x-chefu-app";
 export const API_BASE_URL =
     process.env.NEXT_PUBLIC_API_BASE_URL ||
     process.env.NEXT_PUBLIC_API_URL ||
-    "https://api.chefuinc.com";
+    "https://api.chefu.co.za";
 
 export const CHEFU_ACCOUNT_URL =
     process.env.NEXT_PUBLIC_CHEFU_ACCOUNT_URL ||
-    "https://myaccount.chefuinc.com";
+    "https://myaccount.chefu.co.za";
 
 export const LANDING_PAGE_URL =
     process.env.NEXT_PUBLIC_LANDING_PAGE_URL ||
