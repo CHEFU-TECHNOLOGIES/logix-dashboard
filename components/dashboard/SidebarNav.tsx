@@ -18,7 +18,6 @@ import {
     SidebarTrigger,
     SidebarRail,
 } from "@/components/ui/sidebar";
-import { Button } from "@/components/ui/button";
 import {
     Home,
     Activity,
@@ -27,10 +26,11 @@ import {
     Plug,
     Key,
     Settings as SettingsIcon,
-    LogOut,
 } from "lucide-react";
 import Logo from "../common/logo";
 import { useAuth } from "@/lib/auth";
+import { CheFuUserDropdown } from "chefu-ui";
+import { CHEFU_ACCOUNT_URL } from "@/lib/config";
 
 type DashboardUser = {
     name?: string | null;
@@ -60,19 +60,7 @@ export function DashboardSidebar({
         { label: "Settings", href: "/settings", Icon: SettingsIcon },
     ];
 
-    const displayName =
-        authUser?.displayName ||
-        initialUser?.name ||
-        authUser?.email?.split("@")[0] ||
-        "Developer";
-    const email = authUser?.email || initialUser?.email || "developer@logix.dev";
-
-    const initials = displayName
-        .split(" ")
-        .map((part) => part.charAt(0))
-        .join("")
-        .slice(0, 2)
-        .toUpperCase();
+    const accountHref = `${CHEFU_ACCOUNT_URL}?app=logix-dash`;
 
     return (
         <SidebarProvider
@@ -194,102 +182,19 @@ export function DashboardSidebar({
 
                 {/* User */}
                 <SidebarFooter>
-                    <div
-                        className="
-              relative
-              mt-3
-              mx-3
-              mb-3
-              group-data-[collapsible=icon]:hidden
-            "
-                    >
-                        {/* Plan badge */}
-                        <span
-                            className="
-                absolute
-                -top-3
-                left-2
-                z-10
-                rounded-lg
-                border
-                border-gray-500/30
-                bg-linear-to-r
-                from-gray-500/20
-                to-gray-600/20
-                px-2
-                py-0.5
-                text-[11px]
-                font-semibold
-                capitalize
-                text-gray-400
-              "
-                        >
-                            Free
-                        </span>
-
-                        <div
-                            className="
-                h-16
-                rounded-xl
-                border
-                border-white/5
-                bg-background/30
-                px-3
-                py-2
-              "
-                        >
-                            <div className="flex h-full items-center gap-3">
-                                {/* Avatar */}
-                                <div className="h-8 w-8 shrink-0 overflow-hidden rounded-lg">
-                                    {authUser?.photoURL || initialUser?.image ? (
-                                        <img
-                                            src={authUser?.photoURL || initialUser?.image || ""}
-                                            alt={displayName}
-                                            className="h-full w-full object-cover"
-                                        />
-                                    ) : (
-                                        <div
-                                            className="
-                        flex
-                        h-full
-                        w-full
-                        items-center
-                        justify-center
-                        bg-linear-to-br
-                        from-teal-400
-                        to-emerald-500
-                        text-[11px]
-                        font-semibold
-                        text-background
-                      "
-                                        >
-                                            {initials}
-                                        </div>
-                                    )}
-                                </div>
-
-                                {/* User information */}
-                                <div className="min-w-0 flex-1">
-                                    <div className="truncate text-xs font-medium text-[#A1A1AA]">
-                                        {displayName}
-                                    </div>
-
-                                    <div className="truncate text-[11px] text-[#52525B]">
-                                        {email}
-                                    </div>
-                                </div>
-
-                                <Button
-                                    size="icon"
-                                    variant="ghost"
-                                    className="h-8 w-8 hover:bg-white/10 hover:text-red-400"
-                                    title="Sign out"
-                                    onClick={() => logout()}
-                                >
-                                    <LogOut className="h-4 w-4" />
-                                </Button>
-                            </div>
-                        </div>
+                    <div className="px-3 pb-1 group-data-[collapsible=icon]:hidden">
+                        <CheFuUserDropdown
+                            accountHref={accountHref}
+                            onSignOut={logout}
+                            triggerClassName="w-full justify-between"
+                            menuPlacement="top"
+                            user={{
+                                displayName: authUser?.displayName || initialUser?.name,
+                                email: authUser?.email || initialUser?.email,
+                                photoURL: authUser?.photoURL || initialUser?.image,
+                            }}
+                            variant="neutral"
+                        />
                     </div>
 
                     <SidebarMenu>
