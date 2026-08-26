@@ -12,7 +12,8 @@ import {
 import { Activity as ActivityIcon, Clipboard, Pause, Play, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { api, LogEntry, LogLevel } from "@/lib/api";
+import { getStream } from "@chefu-tech/logix-next";
+import type { LogLevel, StreamLogNormalized } from "@chefu-tech/logix-next";
 import { toast } from "sonner";
 
 // Color scheme mapping
@@ -27,61 +28,36 @@ const levelColor: Record<LogLevel, string> = {
 };
 
 export default function LiveLogsPage() {
-  const [logs, setLogs] = useState<LogEntry[]>([]);
   const [filterLevel, setFilterLevel] = useState<"All" | LogLevel>("All");
   const [search, setSearch] = useState("");
-  const [selected, setSelected] = useState<LogEntry | null>(null);
+  const [selected, setSelected] = useState<StreamLogNormalized | null>(null);
   const [isPaused, setIsPaused] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
+  const [visibleLogs, setVisibleLogs] = useState<StreamLogNormalized[]>([]);
   const streamRef = useRef<HTMLDivElement>(null);
 
-  const fetchLogs = async () => {
-    try {
-      const result = await api.getLogs({ limit: 200 });
-      setLogs(result.logs || []);
-    } catch {
-      // Background retry silently
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  const {
+    data: streamLogs,
+    isLoading,
+    error,
+    connected,
+  } = getStream({
+    type: filterLevel === "All" ? "" : filterLevel,
+    search,
+  });
 
   useEffect(() => {
-    fetchLogs();
-  }, []);
-
-  useEffect(() => {
-    if (isPaused) return;
-
-    const interval = window.setInterval(() => {
-      fetchLogs();
-    }, 2500);
-
-    return () => window.clearInterval(interval);
-  }, [isPaused]);
+    if (!isPaused) setVisibleLogs(streamLogs);
+  }, [streamLogs, isPaused]);
 
   useEffect(() => {
     if (!isPaused) {
       streamRef.current?.scrollTo({ top: streamRef.current.scrollHeight });
     }
-  }, [logs.length, isPaused]);
+  }, [visibleLogs.length, isPaused]);
 
-  const filteredLogs: LogEntry[] = useMemo(() => {
-    return logs.filter((l) => {
-      const logLvl = (l.level || l.type || "info").toLowerCase();
-      const byLevel =
-        filterLevel === "All" ? true : logLvl === filterLevel.toLowerCase();
-
-      const bySearch =
-        search.trim().length === 0
-          ? true
-          : `${l.message} ${l.source} ${l.appName} ${JSON.stringify(l.payload)}`
-              .toLowerCase()
-              .includes(search.toLowerCase());
-
-      return byLevel && bySearch;
-    });
-  }, [logs, filterLevel, search]);
+  const filteredLogs: StreamLogNormalized[] = useMemo(() => {
+    return visibleLogs;
+  }, [visibleLogs]);
 
   const stats = useMemo(() => {
     const total = filteredLogs.length;
@@ -89,7 +65,7 @@ export default function LiveLogsPage() {
     let warnings = 0;
     let success = 0;
     for (const l of filteredLogs) {
-      const lvl = (l.level || l.type || "").toLowerCase();
+      const lvl = l.level.toLowerCase();
       if (lvl === "error") errors++;
       else if (lvl === "warning" || lvl === "warn") warnings++;
       else if (lvl === "success") success++;
@@ -169,7 +145,7 @@ export default function LiveLogsPage() {
           <div className="flex items-center gap-2">
             <ActivityIcon className="h-4 w-4 opacity-60 text-teal-400" />
             <span className="text-xs text-muted-foreground">
-              Live tail • {logs.length} entries recorded
+              Live tail • {visibleLogs.length} entries recorded
             </span>
           </div>
           <span className="text-xs text-muted-foreground flex items-center gap-2">
@@ -179,7 +155,7 @@ export default function LiveLogsPage() {
                 <span className="relative inline-flex rounded-full h-2 w-2 bg-teal-500"></span>
               </span>
             )}
-            {isPaused ? "Paused" : "Polling live backend"}
+            {isPaused ? "Paused" : connected ? "Connected to live stream" : "Disconnected"}
           </span>
         </div>
 
@@ -194,7 +170,11 @@ export default function LiveLogsPage() {
             lineHeight: "1.6",
           }}
         >
-          {isLoading && logs.length === 0 ? (
+          {error ? (
+            <div className="flex h-full items-center justify-center text-red-400">
+              Failed to load live logs: {error.message}
+            </div>
+          ) : isLoading && visibleLogs.length === 0 ? (
             <div className="flex h-full items-center justify-center text-muted-foreground">
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
               Connecting to live log stream…
@@ -207,7 +187,7 @@ export default function LiveLogsPage() {
           ) : (
             <ul className="divide-y divide-white/5">
               {filteredLogs.map((l) => {
-                const lvl = (l.level || l.type || "info") as LogLevel;
+                const lvl = l.level;
                 return (
                   <li
                     key={l.id}
@@ -223,7 +203,7 @@ export default function LiveLogsPage() {
                     >
                       [{lvl.toUpperCase()}]
                     </span>
-                    <span className="mr-2 text-white/70 font-semibold">{l.source || l.appName}</span>
+                    <span className="mr-2 text-white/70 font-semibold">{l.source}</span>
                     <span className="block text-white/90 whitespace-nowrap overflow-hidden text-ellipsis group-hover:whitespace-normal group-hover:break-words">
                       {l.message}
                     </span>
@@ -277,23 +257,17 @@ export default function LiveLogsPage() {
                       className="font-medium uppercase"
                       style={{
                         color:
-                          levelColor[(selected.level || selected.type || "info") as LogLevel] ||
+                          levelColor[selected.level] ||
                           "#60A5FA",
                       }}
                     >
-                      {selected.level || selected.type}
+                      {selected.level}
                     </span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Source / App</span>
-                    <span>{selected.source || selected.appName}</span>
+                    <span>{selected.source}</span>
                   </div>
-                  {selected.environment && (
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Environment</span>
-                      <span>{selected.environment}</span>
-                    </div>
-                  )}
                   <div>
                     <div className="text-muted-foreground mb-1">Message</div>
                     <div className="rounded-lg border border-white/10 bg-black/30 p-2 font-mono text-xs text-white/90">

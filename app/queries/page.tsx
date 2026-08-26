@@ -14,7 +14,8 @@ import {
   TableCell,
 } from "@/components/ui/table";
 import { Play, XCircle, Search, Clipboard, Loader2 } from "lucide-react";
-import { api, LogEntry, LogLevel } from "@/lib/api";
+import { getLogs } from "@chefu-tech/logix-next";
+import type { LogEntry } from "@/lib/api";
 import { toast } from "sonner";
 
 const levelColor: Record<string, string> = {
@@ -34,9 +35,10 @@ function QueriesContent() {
   const [query, setQuery] = useState(
     initialSearch ? `search:${initialSearch}` : "",
   );
-  const [results, setResults] = useState<LogEntry[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [filters, setFilters] = useState<Record<string, string | number>>({
+    ...(initialSearch ? { search: initialSearch } : {}),
+    limit: 200,
+  });
   const [selected, setSelected] = useState<LogEntry | null>(null);
 
   const examples = [
@@ -85,25 +87,18 @@ function QueriesContent() {
     return out;
   }, []);
 
-  const runQuery = async (queryString = query) => {
-    setIsLoading(true);
-    setError(null);
+  const { data, isLoading, error } = getLogs<LogEntry[]>(filters);
+  const results = data || [];
 
-    try {
-      const filters = parseQueryFilters(queryString);
-      const data = await api.getLogs(filters);
-      setResults(data.logs || []);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to run query");
-      setResults([]);
-    } finally {
-      setIsLoading(false);
-    }
+  const runQuery = (queryString = query) => {
+    setFilters(parseQueryFilters(queryString));
   };
 
   useEffect(() => {
-    runQuery(initialSearch ? `search:${initialSearch}` : "");
-  }, [initialSearch]);
+    const nextQuery = initialSearch ? `search:${initialSearch}` : "";
+    setQuery(nextQuery);
+    setFilters(parseQueryFilters(nextQuery));
+  }, [initialSearch, parseQueryFilters]);
 
   const clearQuery = () => {
     setQuery("");
@@ -194,7 +189,7 @@ function QueriesContent() {
         >
           {error ? (
             <div className="flex items-center justify-center py-12 text-red-400">
-              Failed to load logs: {String(error)}
+              Failed to load logs: {error.message}
             </div>
           ) : results.length === 0 ? (
             <div className="flex items-center justify-center py-12 text-muted-foreground">
