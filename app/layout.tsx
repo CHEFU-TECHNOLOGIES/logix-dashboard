@@ -24,7 +24,7 @@ const satoshi = localFont({
 });
 
 export const metadata: Metadata = {
-    title: "Logix",
+    title: "Logix | Dashboard",
     description: "Production-ready logs in under a minute.",
 };
 

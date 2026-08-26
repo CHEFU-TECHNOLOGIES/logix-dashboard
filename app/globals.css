@@ -201,6 +201,25 @@
 }
 
 @layer utilities {
+  .logix-user-dropdown {
+    position: relative;
+  }
+
+  .logix-user-dropdown [role="menu"] {
+    width: 18rem;
+    max-width: calc(100vw - 1rem);
+    max-height: min(30rem, calc(100dvh - 5rem));
+    overflow-y: auto;
+  }
+
+  .logix-user-dropdown [role="menu"] img {
+    width: 2.75rem !important;
+    height: 2.75rem !important;
+    max-width: 2.75rem !important;
+    max-height: 2.75rem !important;
+    object-fit: cover;
+  }
+
   /* Glass panel effect */
   .glass {
     background: var(--glass-bg);

@@ -53,6 +53,7 @@ export default function TopBar() {
                 <CheFuUserDropdown
                     accountHref={accountHref}
                     onSignOut={logout}
+                    className="logix-user-dropdown"
                     triggerClassName="hidden sm:flex rounded-full border-white/14 bg-white/4 hover:bg-white/8"
                     user={{
                         displayName: user.displayName,

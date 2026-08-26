@@ -184,6 +184,7 @@ export function DashboardSidebar({
                 <SidebarFooter>
                     <div className="px-3 pb-1 group-data-[collapsible=icon]:hidden">
                         <CheFuUserDropdown
+                            className="logix-user-dropdown"
                             accountHref={accountHref}
                             onSignOut={logout}
                             triggerClassName="w-full justify-between"
