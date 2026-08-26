@@ -7,7 +7,6 @@ import {
     SidebarProvider,
     Sidebar,
     SidebarContent,
-    SidebarFooter,
     SidebarGroup,
     SidebarGroupContent,
     SidebarHeader,
@@ -15,8 +14,6 @@ import {
     SidebarMenuButton,
     SidebarMenuItem,
     SidebarSeparator,
-    SidebarTrigger,
-    SidebarRail,
 } from "@/components/ui/sidebar";
 import {
     Home,
@@ -28,27 +25,17 @@ import {
     Settings as SettingsIcon,
 } from "lucide-react";
 import Logo from "../common/logo";
-import { useAuth } from "@/lib/auth";
-import { CheFuUserDropdown } from "chefu-ui";
-import { CHEFU_ACCOUNT_URL } from "@/lib/config";
 
-type DashboardUser = {
-    name?: string | null;
-    email?: string | null;
-    image?: string | null;
-};
+
 
 interface DashboardSidebarProps {
     children: React.ReactNode;
-    user?: DashboardUser | null;
 }
 
 export function DashboardSidebar({
     children,
-    user: initialUser,
 }: DashboardSidebarProps) {
     const pathname = usePathname();
-    const { user: authUser, logout } = useAuth();
 
     const items = [
         { label: "Overview", href: "/", Icon: Home },
@@ -60,7 +47,6 @@ export function DashboardSidebar({
         { label: "Settings", href: "/settings", Icon: SettingsIcon },
     ];
 
-    const accountHref = `${CHEFU_ACCOUNT_URL}?app=logix-dash`;
 
     return (
         <SidebarProvider
@@ -179,42 +165,7 @@ export function DashboardSidebar({
                 <div className="w-[96%]">
                     <SidebarSeparator />
                 </div>
-
-                {/* User */}
-                <SidebarFooter>
-                    <div className="px-3 pb-1 group-data-[collapsible=icon]:hidden">
-                        <CheFuUserDropdown
-                            className="logix-user-dropdown"
-                            accountHref={accountHref}
-                            onSignOut={logout}
-                            triggerClassName="w-full justify-between"
-                            menuPlacement="top"
-                            user={{
-                                displayName: authUser?.displayName || initialUser?.name,
-                                email: authUser?.email || initialUser?.email,
-                                photoURL: authUser?.photoURL || initialUser?.image,
-                            }}
-                            variant="neutral"
-                        />
-                    </div>
-
-                    <SidebarMenu>
-                        <SidebarMenuItem>
-                            <SidebarTrigger
-                                className="
-                  w-full
-                  justify-start
-                  rounded-xl
-                  hover:bg-transparent!
-                "
-                            />
-                        </SidebarMenuItem>
-                    </SidebarMenu>
-                </SidebarFooter>
-
-                <SidebarRail />
             </Sidebar>
-
             {children}
         </SidebarProvider>
     );
