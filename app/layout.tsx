@@ -30,6 +30,7 @@ export const metadata: Metadata = {
 
 import { AuthProvider } from "@/lib/auth";
 import { Toaster } from "@/components/ui/sonner";
+import QueryProvider from "@/components/providers/QueryProvider";
 
 export default function RootLayout({
     children,
@@ -43,16 +44,18 @@ export default function RootLayout({
                 suppressHydrationWarning
             >
                 <AuthProvider>
-                    <TooltipProvider>
-                        <DashboardSidebar>
-                            <SidebarInset>
-                                <TopBar />
-                                <div className="py-4 pr-4">
-                                    <div className="mx-auto max-w-7xl">{children}</div>
-                                </div>
-                            </SidebarInset>
-                        </DashboardSidebar>
-                    </TooltipProvider>
+                    <QueryProvider>
+                        <TooltipProvider>
+                            <DashboardSidebar>
+                                <SidebarInset>
+                                    <TopBar />
+                                    <div className="py-4 pr-4">
+                                        <div className="mx-auto max-w-7xl">{children}</div>
+                                    </div>
+                                </SidebarInset>
+                            </DashboardSidebar>
+                        </TooltipProvider>
+                    </QueryProvider>
                     <Toaster richColors position="top-right" />
                 </AuthProvider>
             </body>
