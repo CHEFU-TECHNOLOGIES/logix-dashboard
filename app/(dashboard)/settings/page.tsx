@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { useAuth } from '@/lib/auth';
+import { getApiUrl } from '@/lib/config';
 import { toast } from 'sonner';
 
 export default function SettingsBillingPage() {
@@ -12,7 +13,7 @@ export default function SettingsBillingPage() {
     const { data: planData, isLoading: isLoadingPlan } = useQuery({
         queryKey: ['current-plan'],
         queryFn: async () => {
-            const res = await fetch(`${process.env.NEXT_PUBLIC_SERVER_URI}/billing/current`, {
+            const res = await fetch(getApiUrl('/billing/current'), {
                 credentials: 'include',
             });
             return res.json();
@@ -24,7 +25,7 @@ export default function SettingsBillingPage() {
     const { data: invoicesData, isLoading: isLoadingInvoices } = useQuery({
         queryKey: ['invoices'],
         queryFn: async () => {
-            const res = await fetch(`${process.env.NEXT_PUBLIC_SERVER_URI}/billing/invoices`, {
+            const res = await fetch(getApiUrl('/billing/invoices'), {
                 credentials: 'include',
             });
             return res.json();
@@ -35,7 +36,7 @@ export default function SettingsBillingPage() {
     // Mutation: Create Checkout Session
     const createBillingSession = useMutation({
         mutationFn: async (selectedPlan: string) => {
-            const res = await fetch(`${process.env.NEXT_PUBLIC_SERVER_URI}/billing`, {
+            const res = await fetch(getApiUrl('/billing'), {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -57,7 +58,7 @@ export default function SettingsBillingPage() {
     // Mutation: Open Stripe Billing Portal
     const createPortalSession = useMutation({
         mutationFn: async () => {
-            const res = await fetch(`${process.env.NEXT_PUBLIC_SERVER_URI}/billing/portal`, {
+            const res = await fetch(getApiUrl('/billing/portal'), {
                 method: 'POST',
                 credentials: 'include',
             });

@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/lib/auth';
+import { getApiUrl } from '@/lib/config';
 import { toast } from 'sonner';
 
 export default function AlertsPage() {
@@ -22,7 +23,7 @@ export default function AlertsPage() {
     const { data: alerts, isLoading } = useQuery({
         queryKey: ['alerts'],
         queryFn: async () => {
-            const res = await fetch(`${process.env.NEXT_PUBLIC_SERVER_URI}/logix/alerts`, {
+            const res = await fetch(getApiUrl('/logix/alerts'), {
                 credentials: 'include',
             });
             return res.json();
@@ -47,7 +48,7 @@ export default function AlertsPage() {
                 summary: summary || `Trigger alert when ${appName} logs critical errors`,
             };
 
-            const res = await fetch(`${process.env.NEXT_PUBLIC_SERVER_URI}/logix/alerts`, {
+            const res = await fetch(getApiUrl('/logix/alerts'), {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
