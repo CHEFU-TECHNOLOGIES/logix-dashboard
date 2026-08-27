@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getApiUrl } from '@/lib/config';
 
 export async function GET(req: NextRequest) {
     const sessionCookie = req.headers.get('cookie');
@@ -7,13 +8,17 @@ export async function GET(req: NextRequest) {
     }
 
     const searchParams = req.nextUrl.searchParams.toString();
-    const backendUrl = `${process.env.NEXT_PUBLIC_SERVER_URI}/logs?${searchParams}`;
+    const backendUrl = getApiUrl(`/logs${searchParams ? `?${searchParams}` : ''}`);
 
-    const response = await fetch(backendUrl, {
-        headers: { cookie: sessionCookie },
-        cache: 'no-store',
-    });
+    try {
+        const response = await fetch(backendUrl, {
+            headers: { cookie: sessionCookie },
+            cache: 'no-store',
+        });
 
-    const data = await response.json();
-    return NextResponse.json(data, { status: response.status });
+        const data = await response.json();
+        return NextResponse.json(data, { status: response.status });
+    } catch {
+        return NextResponse.json({ error: 'Log service unavailable' }, { status: 502 });
+    }
 }

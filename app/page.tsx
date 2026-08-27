@@ -53,12 +53,7 @@ export default function DashboardOverview() {
     async function fetchAlerts() {
       try {
         setIsLoadingAlerts(true);
-        const res = await fetch(`${process.env.NEXT_PUBLIC_SERVER_URI}/logix/alerts`, {
-          credentials: 'include',
-        });
-        if (res.ok) {
-          setAlertsData(await api.getAlerts());
-        }
+        setAlertsData(await api.getAlerts());
       } catch (err) {
         console.error('Failed to fetch alerts:', err);
       } finally {
