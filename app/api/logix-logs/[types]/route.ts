@@ -28,6 +28,7 @@ export async function GET(
             'Content-Type': response.headers.get('Content-Type') || 'application/json',
             'Cache-Control': 'no-cache',
             Connection: 'keep-alive',
+            'X-Accel-Buffering': 'no',
         },
     });
 }

@@ -139,7 +139,7 @@ export default function AlertsPage() {
                                 <label className="block text-neutral-400 mb-1">App Name</label>
                                 <input
                                     type="text"
-                                    placeholder="oml-backend"
+                                    placeholder="logix-backend"
                                     value={appName}
                                     onChange={(e) => setAppName(e.target.value)}
                                     className="w-full px-3 py-2 bg-neutral-950 border border-neutral-800 rounded text-white focus:outline-none"

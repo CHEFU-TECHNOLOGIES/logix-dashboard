@@ -22,7 +22,7 @@ export default function LiveLogsPage() {
 
     const logsContainerRef = useRef<HTMLDivElement>(null);
 
-    const { data: logs, isLoading, connected } = getStream({
+    const { data: logs, isLoading, connected, error } = getStream({
         type: filterLevel,
         search: search,
     });
@@ -44,6 +44,12 @@ export default function LiveLogsPage() {
                         {connected ? 'LIVE' : 'DISCONNECTED'}
                     </span>
                 </div>
+
+                {error && (
+                    <p className="text-xs text-red-400" role="alert">
+                        {error.message}
+                    </p>
+                )}
 
                 <div className="flex items-center gap-3">
                     <input
